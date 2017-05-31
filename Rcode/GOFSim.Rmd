@@ -1,0 +1,71 @@
+---
+title: 'Homework 6: GOF simulation'
+author: "Jenn Halbleib"
+date: "March 23, 2017"
+output:
+  pdf_document:
+    fig_height: 8
+    fig_width: 10
+  html_document:
+    fig_height: 8
+    fig_width: 10
+  word_document:
+    fig_height: 8
+    fig_width: 10
+---
+
+```{r, setup, include=FALSE}
+require(mosaic)   # Load additional packages here 
+require(dplyr)
+
+# Some customization.  You can alter or delete as desired (if you know what you are doing).
+trellis.par.set(theme=theme.mosaic()) # change default color scheme for lattice
+knitr::opts_chunk$set(
+  tidy=FALSE,     # display code as typed
+  size="small")   # slightly smaller font for code
+```
+
+#### Statement of Problem
+
+An investigator would like to carry out a goodness-of-fit test for a dataset with $n=200$ observations that are grouped uniformly into six categories, each equally likely. Generate the distribution of the usual goodness-of-fit statistic under this null distribution and compare it to $X^2$ distributions with four, five, and six degrees of freedom.
+
+#### Solution
+
+We begin by stating our hypotheses. $H_0$ states the data matches a multionomial distribution with 6 equally likely cells. $H_A$ states that the data does not match the null distribution. Our goal is to compare $X^2$ distributions with various degrees of freedom to test statistics generated from data that matches the null distribution. The fuction getChiStat generates sets of size $n$ from the multinomial distribution where each cell has equal probability and calculates the $X^2$ test statistic under the null hypothesis. Using this function, we generate a set of 1000 $X^2$ statistics.
+
+```{r}
+set.seed(100)
+getChiStat <- function(numBins = 6, n = 200){
+bins = 1:numBins
+expectedFreq <- (1/numBins)*n
+categoryData <- sample(x = bins, size = n, replace = TRUE)
+freqCatData <- table(categoryData)
+testStatVect <- (freqCatData-expectedFreq)^2/(expectedFreq)
+testStat <- sum(testStatVect)
+return (testStat)
+}
+
+chiDist <- as.matrix(do(1000)*getChiStat())
+
+```  
+
+
+Next, we generate a density curve to describe our data.   
+
+
+```{r}
+
+plot(density(chiDist), main = "Chi-Squared and the Null Hypothesis", ylim=c(0,0.2),
+     xlim = c(0,18),xlab = "Test Statistic")
+polygon(density(chiDist), col="lightsteelblue1",border = "black")
+curve(dchisq(x, df=4), col='turquoise4', add=TRUE)
+curve(dchisq(x, df=5), col='darkred', add=TRUE )
+curve(dchisq(x, df=6), col='royalblue4', add=TRUE )
+legend(12,0.19,c("null", "df=4","df=5","df=6"), 
+       lty=c(1,1,1,1), lwd=c(1.5,1.5,1.5,1.5),
+       col=c("black","turquoise4","darkred","royalblue4"))
+```
+The density plot displays the test statistics generated under the null hypothesis along with the curves of $X^2$ distributions with 4, 5, and 6 degrees of freedom. As the plot shows clearly, the $X^2$ distribution with 5 degrees of freedom most closely matches the test statistic's distribution. The rules of the $X^2$ test tell us to use 5 degrees of freedom here since we have 6 bins and no unknown parameters. In short, our graph reinforces our expectations about the way the $X^2$ test works.
+
+
+
