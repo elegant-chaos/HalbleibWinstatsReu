@@ -1,0 +1,165 @@
+---
+title: "Principal Component Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+```
+
+```{r}
+#choose Goblets.csv
+goblets <- read.csv(file.choose(), header =T)
+```
+
+First, we want to examine the correlations to get a sense of our data.
+
+```{r}
+#print the correlation matrix
+cor(goblets)
+#view the scatter plot matrix
+pairs(goblets)
+```
+Next, it's helpful to store the correlation matrix as a table. 
+```{r}
+gob.R <- cor(goblets)
+#Next, store the eigenvalues and eigenvectors in gob.PCA
+gob.PCA <- eigen(gob.R)
+#print the eigen decomposition (eigenvalues and eigenvectors)
+gob.PCA
+```
+Note: If the variables are not at all correlated (all variables are independent of each other), the eigenvalues will all be 1. Further, the eigenvalues sum to n (the number of rows and columns). The percent of variance explained by each principle component is value[i]/n since we standardize each variable before doing this process, so the variance of each p_i is 1.  
+
+```{r}
+#Make the matrix lambda where the eigenvalues are on the diagonal and every other cell contains zero
+lambda <- diag(gob.PCA$values)
+lambda
+#Make the matrix p of eigenvectors
+p <- gob.PCA$vectors
+```
+
+```{r}
+#multiply P * lambda * P^transpose to get the correlation matrix back (this is called the spectral decomposition)
+spectral <- p%*%lambda%*%t(p)
+spectral
+```
+```{r}
+#Now, doing this with R functions
+princ <- princomp(goblets, cor = TRUE)
+princ
+#get a summary
+summary(princ)
+#look at the loadings
+princ$loadings
+#Look at a biplot
+biplot(princ)
+```
+
+EXAMPLE TWO:
+
+This example uses summary statistics from a single NHL season.
+
+```{r}
+#choose PuckalyticsTeamStats.csv
+nhl <- read.csv(file.choose(), header = T)
+#calling summary on the data set gives summary statistics and will also display missing values information. (HELPFUL!)
+summary(nhl)
+#Changing row numbers to team names
+row.names(nhl) <- nhl$Team
+#getting ride of the name variable
+nhl <- nhl[,-1]
+```
+
+What happens if I don't first scale the data? (This example is instructive. In reality, we MUST scale the variables to do meaningful analysis.)
+
+```{r}
+#looking at the variance matrix
+nhl.var <- var(nhl)
+nhl.var
+
+#making an unscaled model
+nhl.unscaled <- princomp(nhl, cor = FALSE)
+#Notice: just plucks out the variables with the largest variance and gives a sort of "false positive" for the amount of variablity explained by the data. 
+summary(nhl.unscaled)
+nhl.unscaled$loadings
+#notice the errors thrown by this call
+biplot(nhl.unscaled)
+
+#making a scaled model
+nhl.scaled <- princomp(nhl, cor = TRUE)
+summary(nhl.scaled)
+#much better
+biplot(nhl.scaled)
+```
+
+#EXAMPLE 3
+Now, onto IPUMS-ish data:
+```{r}
+worldBank <- read.csv("WorldBank.csv", header = TRUE)
+names(worldBank)
+summary(worldBank)
+#change row labels to country name (could also choose country code and that might make the plot nicer)
+wb <- worldBank
+row.names(wb) <- wb$Country.Code
+wb <- wb[,c(-1,-2)]
+#Must remove missing values 
+wb <- na.omit(wb)
+#Cannot use any variables that are not numeric, don't use Country.Name or Country.Code
+worldBank.pca <- princomp(wb, cor = TRUE)
+summary(worldBank.pca)
+```
+
+```{r, fig.width=9, fig.height=9}
+biplot(worldBank.pca, cex = 0.6)
+#specificy which pc's you want to look at in the biplot
+biplot(worldBank.pca, choices = c(2,4), cex = 0.6)
+```
+
+#TONIGHT'S ACTIVITY USING EXAMPLE 3 DATA
+Choose a subset of the variables in the worldBank.csv and run a PCA on that subset. (Right now, we will need to remove countries or variables with na values. However, tomorrow, we will learn how to use a PCA methodology to impute missing values.)
+
+```{r, fig.width=9, fig.height=9}
+#The hclust command in this plot groups variables with similar correlation. Super useful when considering what variables to subset
+corrplot(cor(wb), tl.cex=0.6, order = "hclust")
+```
+For your smaller set, go ahead and look at the corrplot and then the biplots. Will present what you find in the morning. 
+
+Method: I seperated the variables into 3 topic groups: Education/Work, Health, and Environment/Infrastructure. I then ran PCA analysis on each subset.
+
+```{r, fig.width=7, fig.height=7}
+#Making the subsets
+eduWork <- wb[,c(1,4,7,8,9,14,15,18,19,24,25,27,28,47,48,49)]
+health <- wb[,c(2,3,5,6,10,16,17,22,29,30,33,34,43,44,46)]
+enviroInfra <- wb[,c(11,12,13,20,21,23,25,31,32,35,37,38,39,40,41,50,51)]
+
+#Getting rid of missing data
+eduWork <- na.omit(eduWork)
+health <- na.omit(health)
+enviroInfra <- na.omit(enviroInfra)
+
+#Examining the correlation of the subsets
+corrplot(cor(eduWork), tl.cex=0.6, order = "hclust")
+corrplot(cor(health), tl.cex=0.6, order = "hclust")
+corrplot(cor(enviroInfra), tl.cex=0.6, order = "hclust")
+
+#Running PCA
+eduWork.pca <- princomp(eduWork, cor = TRUE)
+health.pca <- princomp(health, cor = TRUE)
+enviroInfra.pca <- princomp(enviroInfra, cor = TRUE)
+
+#summary of PCA results
+summary(eduWork.pca) #5 PC's > 1.0
+summary(health.pca) #3 PC's > 1.0
+summary(enviroInfra.pca) #4 PC's > 1.0
+
+#vizualizing the top 3 PC's from health vars (for the sake of simplicity, only vizualizing the lowest dimensional result)
+biplot(health.pca, choices = c(1,2), cex = 0.6)
+biplot(health.pca, choices = c(1,3), cex = 0.6)
+biplot(health.pca, choices = c(2,3), cex = 0.6)
+
+#Examining the loadings for the health category
+loadings(health.pca)
+ #Interesting: many of the variables in component 1 have weights of similar magnitute. 
+```
+
