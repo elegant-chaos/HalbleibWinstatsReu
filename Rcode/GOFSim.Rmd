@@ -3,10 +3,10 @@ title: 'Homework 6: GOF simulation'
 author: "Jenn Halbleib"
 date: "March 23, 2017"
 output:
-  pdf_document:
+  html_document:
     fig_height: 8
     fig_width: 10
-  html_document:
+  pdf_document:
     fig_height: 8
     fig_width: 10
   word_document:
