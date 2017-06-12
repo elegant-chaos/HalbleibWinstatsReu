@@ -1,0 +1,87 @@
+---
+title: "Cluster Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+```
+
+Reading in the data and doing an example of Cluster Analysis
+
+```{r}
+drugs <- read.csv(file.choose(),header = TRUE)
+#Deleting a column Brant added by accident
+drugs <- drugs[,-1]
+#Making state names the row names
+row.names(drugs) <- drugs$State
+#making a matrix
+drugsMatrix <- as.matrix(drugs[,2:6])
+
+#Scaling the matrix for the distance function
+drugsMatrix <- scale(drugsMatrix)
+
+#calculating the initial distance matrix
+drugsMatrix.dist <- dist(drugsMatrix, method="euclidean")
+
+#Performing the analysis with the single linkage method
+drugs.clust <- hclust(drugsMatrix.dist, method = "single")
+
+#Plotting the result 
+#Interpretation note: height is the distance that the clusters fused at, given the method we chose
+plot(drugs.clust)
+
+#Performing the analysis with the complete method
+drugs.clust2 <- hclust(drugsMatrix.dist, method = "comp")
+
+#Plotting the result
+plot(drugs.clust2)
+
+#Performing the analysis with the ward method
+drugs.clust3 <- hclust(drugsMatrix.dist, method = "ward.D")
+
+#Plotting the result
+plot(drugs.clust3)
+
+#The function to extract clusters is called cutree and will take a height or a number of groups
+clusters.ward <- cutree(drugs.clust3, k = 6)
+head(clusters.ward)
+
+#Brant's function to create parallel plot, clust.grps (need to load MASS package for this to work)
+clust.grps = function(X,grps,parcoord=F,suppress=F) {
+    k = length(unique(grps))
+    p = dim(X)[[2]]
+    Xmeans = matrix(0,nrow=length(unique(grps)),ncol=p+1)
+    X = as.data.frame(X)
+    for (i in 1:k){
+        cat("\n")
+        cat(paste("Cluster",i,"\n"))
+        cat("=======================================================================\n")
+        if (suppress==F){
+          cat(row.names(X)[grps==i])
+          cat("\n\n")}
+        cat("Variable means in this cluster are:\n")
+        cat("----------------------------------------------------------------------\n")
+        print(apply(X[grps==i,],2,mean))
+        Xmeans[i,]=c(apply(X[grps==i,],2,mean),as.numeric(i))
+        cat("\n\n")
+        
+    } 
+    if (parcoord) {parcoord(Xmeans[,-(p+1)],col=as.numeric(Xmeans[,(p+1)])+3,
+                            lwd=2,var.label=T)} 
+}
+
+#using this function
+#input: data.table of data that went into cluster analysis and the output of the cutree function
+clust.grps(drugs[,2:6],clusters.ward, parcoord = TRUE)
+
+```
+Some notes on outliers:
+Outliers really gum up the works here because extreme cases may end up in clusters on their own when running the analysis.To dampen the effect of an outlier, you can use the "taxi cab" distance instead of the scaled euclidean. Also, sometimes okay to remove the outliers, depending on the analysis you're performing. Also, this is one of many methods that can be used to discover outliers.
+
+###MONDAY AFTERNOON WORK
+
+
+
+
