@@ -1,0 +1,26 @@
+---
+title: "Supervised Learning"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The following exercise comes from Brant Deppa's textbook on Supervised Learning used at Winona State University: 
+
+Goal: Use the diamonds dataset to explore concepts related to supervised learning in a multiple linear regression setting. 
+```{r}
+#Reading in the diamonds data
+diamonds <- read.csv("Diamonds.csv", header = TRUE)
+
+#Definitions of a few terms: 
+#TDdiff = Table - Depth
+#TDRatio = Table/Depth (i.e. the ratio of table to depth)
+
+summary(diamonds)
+
+#Using boxplots to look at the relationship between price and clarity
+boxplot(Price~Clarity, col = "lightblue", xlab = "Clarity", ylab = "Price ($)", data = diamonds)
+```
+
