@@ -1,0 +1,79 @@
+---
+title: "Cross Validation Exercises"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Loading the Diamonds.csv dataset and cleaning things up a bit
+diamonds <- read.csv(file.choose(), header = TRUE)
+diamonds <- cbind(log(diamonds$Price), diamonds)
+diamonds <- diamonds[,-c(5,6,10)]
+```
+
+```{r}
+#Bulding a necessary function for measuring prediction accuracy
+PredAcc = function(y,ypred){
+  	RMSEP = sqrt(mean((y-ypred)^2))
+  	MAE = mean(abs(y-ypred))
+  	MAPE = mean(abs(y-ypred)/y)*100
+  	cat("RMSEP\n")
+  	cat("===============\n")
+  	cat(RMSEP,"\n\n")
+  	cat("MAE\n")
+ 	cat("===============\n")
+  	cat(MAE,"\n\n")
+  	cat("MAPE\n")
+  	cat("===============\n")
+  	cat(MAPE,"\n\n")
+  	return(data.frame(RMSEP=RMSEP,MAE=MAE,MAPE=MAPE))
+}
+```
+
+
+```{r}
+#Making a training, test, and validation set
+n <- nrow(diamonds)
+m1 <- floor(.6*n)
+m2 <- floor(.2*n)
+
+#shuffling the rows of diamonds at random
+set.seed(222)
+randomOrder <- sample(1:n, size = n, replace = FALSE)
+diamonds.train <- diamonds[randomOrder[1:m1],]
+diamonds.val <- diamonds[randomOrder[(m1+1):(m1+m2+1)],]
+diamonds.test <- diamonds[randomOrder[(m1+m2+2):n],]
+
+colnames(diamonds.test)[1] <- "logPrice"
+colnames(diamonds.val)[1] <- "logPrice"
+colnames(diamonds.train)[1] <- "logPrice"
+```
+
+Now, let's make a model to predict price and use our model to predict values in the validation set.
+
+```{r}
+lm1 <- lm(logPrice ~ Carats + Color + Cut + Clarity + TDdiff + TDratio, data = diamonds.train)
+summary(lm1)
+actual.val <- diamonds.val$Price
+logPredict.lm1 <- predict(lm1, newdata = diamonds.val)
+predict.lm1 <- exp(logPredict.lm1)
+PredAcc(actual.val,predict.lm1)
+```
+
+Maybe we can improve the model's predictive accuracy by adding some polynomial terms.
+
+```{r}
+
+```
+
+Oh, it improved! I think this is the best I can do (not really, but illustratively). I'm going to check my prediction using the diamonds.test set.
+
+```{r}
+
+```
+
+#K-FOLD CROSS VALIDATION
+

@@ -1,0 +1,175 @@
+---
+title: "Ensemble Methods"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rpart)
+library(rpart.plot)
+library(mosaic)
+library(ipred)
+library(randomForest)
+library(plotmo)
+
+#bringing Brant's predacc function into the environment
+PredAcc = function(y,ypred){
+  	RMSEP = sqrt(mean((y-ypred)^2))
+  	MAE = mean(abs(y-ypred))
+  	MAPE = mean(abs(y-ypred)/y)*100
+  	cat("RMSEP\n")
+  	cat("===============\n")
+  	cat(RMSEP,"\n\n")
+  	cat("MAE\n")
+ 	cat("===============\n")
+  	cat(MAE,"\n\n")
+  	cat("MAPE\n")
+  	cat("===============\n")
+  	cat(MAPE,"\n\n")
+  	return(data.frame(RMSEP=RMSEP,MAE=MAE,MAPE=MAPE))
+}
+
+#Bringing a cross-validation function into the environment for the random forest (Brant's)
+rf.sscv = function(fit,data,p=.667,B=100,mtry=fit$mtry,ntree=fit$ntree) {
+    MSE = rep(0,B)
+    MAE = rep(0,B)
+    MAPE = rep(0,B)
+    y = exp(fit$y)
+    n = nrow(data)
+    ss <- floor(n*p)
+    for (i in 1:B) {
+        sam = sample(1:n,ss,replace=F)
+        fit2 = randomForest(formula(fit),data=data[sam,],mtry=mtry,ntree=ntree)
+        ynew = exp(predict(fit2,newdata=data[-sam,]))
+        MSE[i] = mean((y[-sam]-ynew)^2)
+        MAE[i] = mean(abs(y[-sam]-ynew))
+        MAPE[i] = mean((abs(y[-sam]-ynew)/y[-sam]))
+    }
+    RMSEP = sqrt(mean(MSE))
+    MAEP = mean(MAE)
+    MAPEP = mean(MAPE)
+    cat("RMSEP\n")
+    cat("===============\n")
+    cat(RMSEP,"\n\n")
+    cat("MAE\n")
+    cat("===============\n")
+    cat(MAEP,"\n\n")
+    cat("MAPE\n")
+    cat("===============\n")
+    cat(MAPEP,"\n\n")
+    temp = data.frame(MSEP=MSE,MAEP=MAE,MAPEP=MAPE)
+    return(temp)
+}
+
+
+```
+
+```{r}
+#Loading the data from Diamonds.csv
+diamonds <- read.csv(file.choose(), header = TRUE)
+diam.train <- diamonds[diamonds$Test==0, -10]
+diam.valid <- diamonds[diamonds$Test==1, -10]
+diam.test <- diamonds[diamonds$Test==2, -10]
+```
+
+```{r}
+#Bagging regression trees with 10 bootstrap replications
+diam.bag <- bagging(log(Price)~.,data=diam.train,coob=T,nbagg=10,control=rpart.control(cp=0.005,minsplit=5,xval=0))
+diam.bag
+#RMSEP estimate is on the log scale response
+
+ypredlog <- predict(diam.bag, newdata = diam.valid)
+ypred <- exp(ypredlog)
+PredAcc(diam.valid$Price,ypred)
+```
+#Adjust the cp
+```{r}
+diam.bag2 <- bagging(log(Price)~.,data=diam.train,coob=T,nbagg=25,
+control=rpart.control(cp=.00005,minsplit=5,xval=0))
+
+diam.bag2
+
+ypredlog <- predict(diam.bag2, newdata = diam.valid)
+ypred <- exp(ypredlog)
+PredAcc(diam.valid$Price,ypred)
+```
+```{r}
+#Trying this process on the chicago homes data (ChiHomes(test).csv and ChiHomes(train).csv)
+Chi.test <- read.csv(file.choose(),header = TRUE)
+Chi.train <- read.csv(file.choose(), header = TRUE)
+
+chi.test <- Chi.test[,-3]
+chi.train <- Chi.train[,-3]
+
+fit <- rpart(log(ListPrice)~.,data=chi.train)
+home.bag <- bagging(formula(fit),data=chi.train,coob=T,nbagg=1000,control=rpart.control(cp=0.00000001,minsplit=2,xval=0))
+
+ypredlog=predict(home.bag,newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred)
+```
+#RANDOM FORESTS
+```{r}
+#Using the Solubility(train).csv and Solubility(test).csv data files
+solu.train <- read.csv(file.choose(), header = TRUE)
+solu.test <- read.csv(file.choose(), header = TRUE)
+
+#Make a random forest to predictic solubility
+solu.rf <- randomForest(log10sol~.,data=solu.train)
+solu.rf
+
+#Exploring the variables
+varImpPlot(solu.rf)
+
+#Plotting the random forest
+par(mfrow=c(2,2))
+partialPlot(solu.rf,solu.train,MolWeight)
+partialPlot(solu.rf,solu.train,NumCarbon)
+partialPlot(solu.rf,solu.train,NumNonHBonds)
+partialPlot(solu.rf,solu.train,SurfaceArea1)
+
+#In the plotmo function, the y-axis (unlabeled axis) is the response variable
+plotmo(solu.rf)
+```
+
+#MESSING AROUND WITH THE CHICAGO HOME PRICES DATA USING A RANDOM FOREST
+
+```{r}
+home.rf <- randomForest(log(ListPrice)~.,data=chi.train)
+home.rf
+
+
+#cross-validation of home.rf
+rf.sscv(home.rf,chi.train,B=100,mtry=6,ntree=400)
+
+#Plotting home.rf
+plotmo(home.rf)
+
+#Using home.rf to predict the values in the test set
+ypredlog=predict(home.rf,newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred)
+```
+
+#BUILDING A CUBIST MODEL FOR THE SOLUBILITY DATA
+```{r}
+library(Cubist)
+
+Xtrain = solu.train[,-1]
+Ytrain = solu.train[,1]
+Xtest = solu.test[,-1]
+ytest = solu.test[,1]
+ 
+solu.cub = cubist(Xtrain,Ytrain,committees=10, neighbors =9)
+summary(solu.cub)
+
+ypred = predict(solu.cub,newdata=Xtest)
+
+PredAcc(ytest,ypred)
+
+#Making a plot
+plot(solu.test$log10sol,ypred,xlab="Actual log(Solubility)",ylab="Predict log(Solubility)")
+abline(0,1,lwd=3,col="blue")
+title(main="Fitted Values for Testing Data")
+```
+

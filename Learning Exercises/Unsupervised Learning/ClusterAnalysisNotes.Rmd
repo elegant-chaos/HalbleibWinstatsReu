@@ -82,6 +82,31 @@ Outliers really gum up the works here because extreme cases may end up in cluste
 
 ###MONDAY AFTERNOON WORK
 
+```{r}
+#Making data subset from WorldBank.csv
+wb <- read.csv("WorldBank.csv", header = TRUE)
+health <- wb[,c(2,3,5,6,10,16,17,22,29,30,33,34,43,44,46)]
+
+#Setting the Country.Code as the row name
+row.names(health) <- health$Country.Code
+
+#Making a matrix from the health data
+healthMatrix <- as.matrix(health[,-1])
+
+#Scaling the matrix for the distance function
+healthMatrix <- scale(healthMatrix)
+
+#calculating the initial distance matrix
+healthMatrix.dist <- dist(healthMatrix, method="euclidean")
+
+#Performing the analysis with the ward.D method
+healthMatrix.clust <- hclust(healthMatrix.dist, method = "ward.D")
+
+#Plotting the result 
+#Interpretation note: height is the distance that the clusters fused at, given the method we chose
+plot(healthMatrix.clust, cex = 0.6)
+```
+
 
 
 

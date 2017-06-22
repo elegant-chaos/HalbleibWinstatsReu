@@ -96,7 +96,7 @@ biplot(nhl.scaled)
 #EXAMPLE 3
 Now, onto IPUMS-ish data:
 ```{r}
-worldBank <- read.csv("WorldBank.csv", header = TRUE)
+worldBank <- read.csv(file.choose(), header = TRUE)
 names(worldBank)
 summary(worldBank)
 #change row labels to country name (could also choose country code and that might make the plot nicer)
@@ -161,5 +161,24 @@ biplot(health.pca, choices = c(2,3), cex = 0.6)
 #Examining the loadings for the health category
 loadings(health.pca)
  #Interesting: many of the variables in component 1 have weights of similar magnitute. 
+```
+
+Back in class...
+
+```{r}
+#The square root of the eigen $values is the standard deviation of each component in the summary(health.pca) readout
+health.pc <- eigen(cor(health))
+health.pc
+
+#Alternative way to perform PCA:
+
+#Do the singular value decomposition of a matrix
+#d is the eigenvalues
+#x = udv
+#v is the matrix of variable loadings where each column contains the loadings of the corresponding pc
+#u is the pc scores (values for each 'individual' in your data set, in our example countries)
+#load your data into a variable x by row (see page 25) and use the command svd(x)
+#x.svd <- svd(x) 
+
 ```
 

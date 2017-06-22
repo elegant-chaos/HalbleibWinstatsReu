@@ -1,0 +1,179 @@
+---
+title: "Tree-Based Regression Models"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#Some libraries for trees
+library(rpart)
+library(rpart.plot)
+library(mosaic)
+```
+
+Using trees to (hopefully) improve our model for diamond prices.
+
+```{r}
+#Loading diamonds.csv
+diamonds <- read.csv(file.choose(), header = TRUE)
+dtrain <- diamonds[diamonds$Test==0, c(-10)]
+dvalid <- diamonds[diamonds$Test == 1, -10]
+dtest <- diamonds[diamonds$Test == 2, -10]
+
+#Making a tree from all the variables
+tree1 <- rpart(Price~.,data=dtrain)
+prp(tree1, type=3, main="Regression Tree for Diamond Prices")
+summary(tree1)
+tree1
+#This plot shows relative cross-validation error (relative to the tree of one node where all y values equal the mean y)
+plotcp(tree1)
+```
+
+#FOR TOMORROW: BUILD A TREE MODEL (SEE PAGE 17 FOR TEST TO RUN AT THE END OF YOUR TREE BUILDING -- DON'T USE THE VERSION ON PAGE 16) TO PREDICT CHICAGO HOME PRICES. DO EVERYTHING ON PAGE 20 OF THE HANDOUT WITH CHICAGO HOMES DATA.
+
+The following code chunk imports the data and sets up 2 necessary functions: rpart.logsscv performs a Monte Carlo check for model accuracy and PredAcc gives statistics about model accuracy.
+```{r}
+#loading the data from the ChiHomes(test).csv and ChiHomes(train).csv files
+chi.train <- read.csv(file.choose(), header = TRUE)
+chi.test <- read.csv(file.choose(), header = TRUE)
+
+#removing zip code, per the instructions from Brant
+chi.train <- chi.train[,-3]
+chi.test <- chi.test[,-3]
+
+#bringing Brant's rpart.logsscv function into the environment
+#For this function to work, need to feed in the full aggregated data set (not the test or train or validation set alone). Randomly splits the data set into 2 groups to refit the model, test, and train. Can be used to tune the cp, minsplit, and minbucket choices. This version assumes that the response variable is on a log scale.
+rpart.logsscv = function(fit,data,p=.667,B=100,
+                      cp=fit$control$cp,minsplit=fit$control$minsplit, minbucket=fit$control$minbucket) {
+    MSE = rep(0,B)
+    MAE = rep(0,B)
+    MAPE = rep(0,B)
+    y = exp(fit$y)
+    n = nrow(data)
+    ss <- floor(n*p)
+    for (i in 1:B) {
+        sam = sample(1:n,ss,replace=F)
+        fit2 = rpart(formula(fit),data=data[sam,],cp=cp,minsplit=minsplit, minbucket = minsplit)
+        ynew = exp(predict(fit2,newdata=data[-sam,]))
+        MSE[i] = mean((y[-sam]-ynew)^2)
+        MAE[i] = mean(abs(y[-sam]-ynew))
+        MAPE[i] = mean((abs(y[-sam]-ynew)/y[-sam]))*100
+    }
+    RMSEP = sqrt(mean(MSE))
+    MAEP = mean(MAE)
+    MAPEP = mean(MAPE)
+    cat("RMSEP\n")
+    cat("===============\n")
+    cat(RMSEP,"\n\n")
+    cat("MAEP\n")
+    cat("===============\n")
+    cat(MAEP,"\n\n")
+    cat("MAPEP\n")
+    cat("===============\n")
+    cat(MAPEP,"\n\n")
+    temp = data.frame(MSEP=MSE,MAEP=MAE,MAPEP=MAPE)
+    return(temp)
+}
+
+#bring Brant's predacc function into the environment
+PredAcc = function(y,ypred){
+  	RMSEP = sqrt(mean((y-ypred)^2))
+  	MAE = mean(abs(y-ypred))
+  	MAPE = mean(abs(y-ypred)/y)*100
+  	cat("RMSEP\n")
+  	cat("===============\n")
+  	cat(RMSEP,"\n\n")
+  	cat("MAE\n")
+ 	cat("===============\n")
+  	cat(MAE,"\n\n")
+  	cat("MAPE\n")
+  	cat("===============\n")
+  	cat(MAPE,"\n\n")
+  	return(data.frame(RMSEP=RMSEP,MAE=MAE,MAPE=MAPE))
+}
+```
+
+First, I ran the rpart function with the default settings to predict the log of ListPrice.
+```{r}
+default <- rpart(log(ListPrice)~., data = chi.train)
+plot(default)
+text(default)
+prp(default,type=4,digits=4)
+
+#predition accuracy
+rpart.logsscv(default, data = chi.test) #MAPEP = 98.51 and lots of errors due to differences in bins
+
+ypredlog <- predict(chi.mod1, newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred) #MAPE - 24.421766
+```
+
+Now, I'm going to adjust the settings of rpart to try to reduce MAPEP
+```{r}
+chi.mod1 <- rpart(log(ListPrice)~., data = chi.train, cp = 0.001)
+prp(chi.mod1,type=4,digits=4)
+plotcp(chi.mod1)
+```
+Examing the plotcp graph, I see diminishing returns for cp values less than 0.0068. I'm going to fit a model with this cp value and check it's accuracy when used for predicting the log of the ListPrice values in the training data.
+```{r}
+#model with cp=0.0068
+chi.mod2 <- rpart(log(ListPrice)~., data = chi.train, cp = 0.0068)
+prp(chi.mod2,type=4,digits=4)
+plotcp(chi.mod2)
+
+#prediction accuracy
+rpart.logsscv(chi.mod2, data = chi.test) #increased error, MAPEP = 99.8
+```
+
+It seems a better strategy to reduce the number of bins. I'm going to increase the cp.
+```{r}
+chi.mod3 <- rpart(log(ListPrice)~., data = chi.train, control=rpart.control(minbucket = 20))
+prp(chi.mod3, type=4, digits=4)
+plotcp(chi.mod3)
+
+#prediction accuracy
+rpart.logsscv(chi.mod3, data = chi.test) #slightly decrease error, MAPEP = 95.8
+```
+It helped slightly to increase the number of items per bin. I'm concerned about how I'm using the rpart.logsscv function due to all the errors. 
+```{r}
+#predicting 1 set using chi.mod3
+ypredlog <- predict(chi.mod3, newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred) #MAPE = 26.17 so obv. not understanding the rpart.logsscv function
+
+#Repeating 1 time test for chi.mod2
+ypredlog <- predict(chi.mod2, newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred) #MAPE = 27.22876
+```
+Okay, so decreasing tree complexity again.
+```{r}
+chi.mod4 <- rpart(log(ListPrice)~., data = chi.train, control=rpart.control(minbucket = 20, minsplit = 10))
+prp(chi.mod4, type=4, digits=4)
+plotcp(chi.mod4)
+
+ypredlog <- predict(chi.mod4, newdata=chi.test)
+ypred = exp(ypredlog)
+PredAcc(chi.test$ListPrice,ypred) #MAPE = 26.1788
+```
+
+All that and it seems the model with the default settings is about as good as it gets using a single tree.
+
+#looking at the last chunk of code Brant wants us to run
+```{r}
+Diamonds = read.csv(file.choose(),header=T)
+
+fit = rpart(log(Price)~.,data=Diamonds)
+
+tree.vary = function(fit,data) {
+    n = nrow(data)
+    sam = sample(1:n,floor(n*.5),replace=F)
+    temp = rpart(formula(fit),data=data[sam,])
+    prp(temp,type=4,digits=3)
+}
+
+do(10)*tree.vary(fit,data=Diamonds)
+
+#Changes as the sample grabbed changes.
+```
+

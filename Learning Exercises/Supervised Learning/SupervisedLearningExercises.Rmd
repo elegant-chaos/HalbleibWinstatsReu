@@ -20,7 +20,292 @@ diamonds <- read.csv("Diamonds.csv", header = TRUE)
 
 summary(diamonds)
 
+#putting clarity in order from worst to best 
+clarity = ordered(diamonds$Clarity, levels = c("SI2", "SI1", "VS2", "VS1", "VVS2", "VVS1", "IF"))
+
 #Using boxplots to look at the relationship between price and clarity
-boxplot(Price~Clarity, col = "lightblue", xlab = "Clarity", ylab = "Price ($)", data = diamonds)
+boxplot(Price~clarity, col = "lightblue", xlab = "Clarity", ylab = "Price ($)", data = diamonds)
+```
+Notice: As clarity increases, price decreases. This seems counterintuitive. Something else must be happening here.
+
+```{r}
+#summarize diamonds by clarity
+by(diamonds$Price, clarity, summary)
+```
+The summary reinforces our observation that increasing clarity correpsonds to decreasing price.
+
+```{r}
+#Modeling price using only clarity
+clarity.price <- lm(diamonds$Price ~ clarity)
+summary(clarity.price)
+
+```
+Again, the model for price given clarity confirms that increasing clarity corresponds with decreasing price. However, our small R-Squared value of 0.04595 shows this model does not account for 95% of the variability in diamond prices. 
+
+Adding more of the available variables, we may improve our model. Let's explore carat size's relationship with clarity:
+
+```{r}
+boxplot(Carats ~ Clarity, data = diamonds, xlab = "Clarity", ylab = "Carat Size", col = "yellow")
+```
+
+
+The boxplots of Carat Size plotted against Clarity show that, as clarity increases, size generally decreases. Carat Size added to the model for price will likely add important information to our prediction. 
+
+```{r}
+price.ClaritySize <- lm(Price~Carats + Clarity, data = diamonds)
+summary(price.ClaritySize)
+```
+The output shows adding Carat Size signifcantly improved our model's ability to explain variablity in diamond prices.
+
+What if I make the Price ~ Carats + Clarity model with interaction terms?
+```{r}
+priceInteraction <- lm(Price ~ Carats*Clarity, data = diamonds)
+summary(priceInteraction)
+```
+Looking at the Adjusted R^2, we see adding the interaction term doesn't improve the model's accounting of variability more than a few tenths of a percent.
+
+Running ANOVA to assess the significance of the interaction term, we see that the term tests as significant. However, following our desire to keep the model representative AND as simple as possible, leaving out the interaction term is reasonable.
+
+```{r}
+anova(priceInteraction)
+```
+
+```{r}
+#Making a plot of our data from the interaction model's terms
+plot(Price~Carats,data=diamonds)
+abline(-1608.2,7695.61,lwd=3,col=1)
+abline(-1608.2 - 1309.86,7695.61-327.02,lwd=3,col=2)
+abline(-1608.2 - 1263.88,7695.61-897.44,lwd=3,col=3)
+abline(-1608.2 - 913.41,7695.61-110.29,lwd=3,col=4)
+abline(-1608.2 - 659.17,7695.61+76.61,lwd=3,col=5)
+abline(-1608.2 - 386.98,7695.61+153.78,lwd=3,col=6)
+abline(-1608.2 - 159.64,7695.61-17.79,lwd=3,col=7)
+
+```
+
+Now, to check conditions:
+```{r}
+plot(priceInteraction)
+```
+These plots show issues with several conditions: normality of errors (plot 2), constant variance (plot 1), and linearity (plot 1). 
+
+Next, we try transformations to fix some of the issues apparent in the residual plots.
+
+```{r}
+#library written by John Fox, who also has a great book on Regression
+library(car)
+inverseResponsePlot(priceInteraction)
+```
+This plot displays the Tukey Power Transformation that gives optimal fit, along with the fit of $\lambda = {-1,0,1}$. In this case, both the optimal and the log function (log occurs when $\lambda = 0$ in the Tukey Power Transformation family) appear adequate. The log offers better interpretive value than the optimal value, so it may be preferable, depending on the application of the model. (Note: only a small family of transformations have solid grounding in statistical theory and tend to be preferred generally over other transformations. See page 21 of Brant's Supervised Learning chaper on MLR for more information.)
+
+Now, looking at the Box-Cox Transformation
+```{r}
+price.boxCox <- powerTransform(diamonds$Price)
+summary(price.boxCox)
+```
+
+Again, looking at the estimated power, $\lambda = 0$ seems to again be a reasonable transformation for price. And, again, we prefer using the log(price) over raising price to 0.1483 for reasons related to interpretablity of the model and statistical theory.
+
+```{r}
+diamondsTransform <- diamonds
+diamondsTransform$Price <- log(diamondsTransform$Price)
+transformModel <- lm(Price ~ Carats*Clarity, data = diamondsTransform)
+plot(transformModel)
+```
+
+The log transformation of price has improved variance and normality conditions. We still have some curvature in the residuals vs fitted plot that suggests we are probably still missing some sort of quadratic term on the right hand side of the equation.
+
+Let's examine plot of the lowess smooth for log(price) vs carat size by clarity.
+
+```{r}
+Diamonds <- diamonds
+Diamonds$Price = log(Diamonds$Price)
+
+plot(Diamonds$Carat,Diamonds$Price,xlab="Carat Size",ylab="Price ($)")
+
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="SI2"],
+Diamonds$Price[Diamonds$Clarity=="SI2"]),col=1,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="SI1"],
+Diamonds$Price[Diamonds$Clarity=="SI1"]),col=2,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="VS2"],
+Diamonds$Price[Diamonds$Clarity=="VS2"]),col=3,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="VS1"],
+Diamonds$Price[Diamonds$Clarity=="VS1"]),col=4,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="VVS2"],
+Diamonds$Price[Diamonds$Clarity=="VVS2"]),col=5,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="VVS1"],
+Diamonds$Price[Diamonds$Clarity=="VVS1"]),col=6,lty=1,lwd=3)
+lines(lowess(Diamonds$Carat[Diamonds$Clarity=="IF"],
+Diamonds$Price[Diamonds$Clarity=="IF"]),col=7,lty=1,lwd=3)
+
+legend(1.5,8.0,levels(clarity),lty=1,lwd=3,col=1:7)
+
+```
+
+Looking at our plots, we can see some curvature, just like we suspected based on the residuals vs. fitted plot. Let's make a new model with carat squared added.
+
+```{r}
+quadMod <- lm(Price~poly(Carats,2)*Clarity, data = diamondsTransform)
+summary(quadMod)
+```
+The R-squared has improved. Let's check conditions:
+```{r}
+plot(quadMod)
+```
+Adding the polynomial term definitly reigned in the curvature in the residuals vs fitted plot. Not perfect, but it is real data so perfection is probably unlikely. 
+
+Reminder: to interpret predictions from this model, we're getting out the log(price) so undo the log by raising e to the model's prediction.
+
+####ACTIVITY: MAKE THE BEST PREDICTION OF PRICE YOU CAN USING MLR
+
+First, we make a data training set. (At this step, I cleaned my environment and made a fresh data set from the Diamonds.csv file.)
+```{r}
+diamonds <- read.csv(file.choose(), header = TRUE)
+diamonds$Price <- log(diamonds$Price)
+diamonds.train <- diamonds[diamonds$Test<2,]
+diamonds.test <- diamonds[diamonds$Test==2,]
+diamonds.train <- diamonds.train[,-10]
+diamonds.test <- diamonds.test[,-10]
+```
+
+Making a function to output the results of testing the model:
+```{r}
+PredAcc = function(y,ypred){
+  	RMSEP = sqrt(mean((y-ypred)^2))
+  	MAE = mean(abs(y-ypred))
+  	MAPE = mean(abs(y-ypred)/y)*100
+  	cat("RMSEP\n")
+  	cat("===============\n")
+  	cat(RMSEP,"\n\n")
+  	cat("MAE\n")
+ 	cat("===============\n")
+  	cat(MAE,"\n\n")
+  	cat("MAPE\n")
+  	cat("===============\n")
+  	cat(MAPE,"\n\n")
+  	return(data.frame(RMSEP=RMSEP,MAE=MAE,MAPE=MAPE))
+}
+
+#Permanently storing the true y-values
+actual <- exp(diamonds$Price)
+```
+
+
+Now, to mess around with some models:
+
+```{r}
+#A model with all variables
+kitchenSink <- lm(Price ~ Carats + Color + Clarity + Depth + Cut + TDratio, data = diamonds.train)
+summary(kitchenSink) #Adj. R-squared 0.9114 
+#Predict from kitchenSink model
+predLog <- predict(kitchenSink, newdata = diamonds.test)
+pred <- exp(predLog)
+PredAcc(actual,pred) #MAPE 85.5948
+```
+```{r}
+#Adding quadratic terms
+int1 <- lm(Price ~ poly(Carats,2)*Clarity*Color*TDdiff, data = diamonds.train)
+summary(int1) #Adj. R-squared 0.9776
+#Predict from int1 model
+predLog <- predict(int1, newdata = diamonds.test)
+pred <- exp(predLog)
+PredAcc(actual,pred) #MAPE 83.38548
+```
+
+###ACTIVITY: MAKE THE BEST PREDICTIVE MODEL FOR CHICAGO HOME PRICES YOU CAN FIND USING THE CHIHOMES DATA SET AND MLR METHODS
+
+```{r}
+chi <- read.csv(file.choose(), header = TRUE)
+chi.test <- read.csv(file.choose(), header = TRUE)
+```
+
+First, let's examine the variables available in the dataset.
+```{r}
+names(chi)
+```
+
+Descriptions of the variable's have been provided as follows:
+*	Type (X_1 )  = type of home (Condo/Coop, Multi-Family, Single Family Residential, or Townhouse.
+*	City (X_2 ) = city/suburb (Arlington Hts., Chicago (Belmont Cragin), Des Plaines, Norridge, or Oak Park.
+*	ZIP (X_3) = ZIP code  
+*	ListPrice (Y) = current list price ($)
+*	BEDS (X_4) = number of bedrooms
+*	BATHS (X_5) = number of bathrooms
+*	ImputedSQFT (X_6) = imputed square footage (ft2).  For many of the homes sampled the square footage was not given, however the number of bedrooms and bathrooms was always given.  To fill in the missing square footage of homes, I used MLR to estimate the square footage using the number of bedrooms and bathrooms as predictors. I used the predicted values from this model to fill in the missing square footage for the homes without.  For homes that had square footage I obviously used the value given.
+*	Parkspots (X_6) = number of parking spots
+*	HasGarage (X_7) = home has a garage (Garage or None)
+*	DOM (X_8) = current number of days the home has been on the market.
+*	BeenReduced (X_9) = has the price of home been reduced since first listed (Yes or No)
+*	SoldPrev (X_10) = has the home been sold previously (Yes or No)
+*	LATITUDE (X_11) = latitude of the home (degrees, accurate to hundred thousandths)
+*	LONGITUDE (X_12) = longitude of the home (degrees, accurate to hundred thousandths and negative because the U.S. is west of the Prime Meridian.)
+
+```{r}
+str(chi)
+```
+
+In this case, I think using ZIP, Beds, Baths, and ParkSpots as factors falls more in line with their true meaning in the data set. Here, I've appended the new factor variables to chi and chi.test
+
+```{r}
+chi <- cbind(BED.f = as.factor(chi$BEDS), chi)
+chi <- cbind(BATH.f = as.factor(chi$BATHS), chi)
+chi <- cbind(ZIP.f = as.factor(chi$ZIP), chi)
+chi <- cbind(ParkSpots.f = as.factor(chi$ParkSpots), chi)
+
+chi.test <- cbind(BED.f = as.factor(chi.test$BEDS), chi.test)
+chi.test <- cbind(BATH.f = as.factor(chi.test$BATHS), chi.test)
+chi.test <- cbind(ZIP.f = as.factor(chi.test$ZIP), chi.test)
+chi.test <- cbind(ParkSpots.f = as.factor(chi.test$ParkSpots), chi.test)
+```
+
+Now, to begin exploring variable relationships. 
+```{r}
+simpleFull <- lm(ListPrice ~ ParkSpots.f + ZIP.f + BATH.f + Type + City + ImputedSQFT + HasGarage + DOM + BeenReduced + SoldPrev + LATITUDE + LONGITUDE, data = chi)
+summary(simpleFull)
+simpleFUll.a <- aov(simpleFull)
+summary(simpleFUll.a)
+```
+Building a model with the significant aov predictors and checking plots.
+```{r}
+simple <- lm(ListPrice ~ ParkSpots.f + ZIP.f + BATH.f + Type + ImputedSQFT + HasGarage + BeenReduced, data = chi)
+summary(simple)
+plot(simple)
+```
+Taking the log of ListPrice to decrease leverage of high outliers.
+
+```{r}
+chi <- cbind(logPrice = log(chi$ListPrice), chi)
+simpleLog <- lm(logPrice ~ ParkSpots + LATITUDE*LONGITUDE + BATHS*ImputedSQFT + BEDS*ImputedSQFT + Type + ImputedSQFT + HasGarage, data = chi)
+summary(simpleLog)
+plot(simpleLog)
+```
+
+Just checking where we're at in predicting (note: At this step, I switched back to using numeric ParkSpots, Zip, and Bath because new levels in the test data messed up the code. It appears to be okay.)
+
+```{r}
+#Predict from simpleLog model
+predL <- predict(simpleLog, newdata = chi.test)
+pred <- exp(predL)
+PredAcc(chi.test$ListPrice,pred)
+plot(chi.test$ListPrice~pred)
+abline(0,1)
+```
+
+Taking the log of SQFT
+```{r}
+chi <- cbind(logSQFT = log(chi$ImputedSQFT), chi)
+loglm <- lm(logPrice ~ ParkSpots + ZIP + BATHS + Type + ImputedSQFT + HasGarage + BeenReduced, data = chi)
+summary(loglm)
+plot(loglm)
+```
+```{r}
+#Predict from loglm model
+predL <- predict(loglm, newdata = chi.test)
+pred <- exp(predL)
+PredAcc(chi.test$ListPrice,pred)
+```
+
+```{r}
+#Adding an interaction 
 ```
 
